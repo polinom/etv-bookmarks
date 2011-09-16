@@ -84,9 +84,6 @@ etv.EntryView = Backbone.View.extend({
       return this
     },
 
-
-
-
 });
 
 
@@ -125,7 +122,6 @@ etv.FolderView = Backbone.View.extend({
 
   addOneEntry: function(entry){
     var entry_view = new etv.EntryView({model: entry});
-    $(this.el).
   },
 
   addAllEntries: function(model, responce){
