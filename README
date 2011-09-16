@@ -1,0 +1,10 @@
+USAGE:
+------
+
+    <script src='http://local.etvnet.com:8888/app/bookmarks_app.js'/></script>
+    <div id="#etv-bookmarks-app"></div>
+    <script>    
+        $(function(){
+              app = new etv.BookmarksView({el: $('#etv-bookmraks-app')})
+         });
+    </script>
