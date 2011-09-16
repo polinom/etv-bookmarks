@@ -1,7 +1,7 @@
 USAGE:
 ------
 
-    <script src='http://local.etvnet.com:8888/app/bookmarks_app.js'/></script>
+    <script src='../app/bookmarks_app.js'/></script>
     <div id="#etv-bookmarks-app"></div>
     <script>    
         $(function(){
