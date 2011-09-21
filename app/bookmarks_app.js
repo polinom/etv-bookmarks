@@ -1,33 +1,27 @@
-var etv = {}
+var etv = {}; etv.vid = {}; etv.vid.bmark = {}
 // - - -- - - -- - - -- - - -- - - - -- - - - - -- - - -- - - - -- - - 
 //----------------------  MODELS  --------------------------------------
 // - - - - -- - -  - -- - -- - - - - -- - - - -- - - - - -- - - - - - -
 
 // Folder Item 
-etv.Entry = Backbone.Model.extend({
+etv.vid.bmark.Entry = Backbone.Model.extend({
 	urlRoot: '/api/v3.0/media/lists',
-
-  folder_url: function(){
-    folder = this.get('folder')
-  },
-});
+  });
 
 
 
 // Folder model
-etv.Folder = Backbone.Model.extend({
+etv.vid.bmark.Folder = Backbone.Model.extend({
 
     initialize: function() {
-      this.entries = new etv.Entries([],{parent_model:this});
+      this.children = new etv.vid.bmark.Entries([],{parent_model:this});
     },
 
     url: function(){
       return '/api/v3.0/media/lists/'+this.get('id')
     }
     
-})
-
-
+});
 
 
 // - - - - - - - - - - - - - - -- - - - -- - - - - -- - - -- - - - -- -
@@ -35,12 +29,14 @@ etv.Folder = Backbone.Model.extend({
 // - - - - -- - -  - -- - -- - - - - -- - - - -- - - - - -- - - - - - -
 
 // Items Collection
-etv.Entries = Backbone.Collection.extend({
+etv.vid.bmark.Entries = Backbone.Collection.extend({
+
   initialize: function(list,options) {
       this.parent_model = options.parent_model;
     },
 
-  model: etv.Entry,
+  model: etv.vid.bmark.Entry,
+
   // to change
   url: function(){
     return '/api/v3.0/media/lists/'+this.parent_model.get('id')+'/entries'
@@ -51,19 +47,13 @@ etv.Entries = Backbone.Collection.extend({
 
 
 //  Folder Collection
-etv.Folders = Backbone.Collection.extend({
+etv.vid.bmark.Folders = Backbone.Collection.extend({
 
-	model: etv.Folder,
+	model: etv.vid.bmark.Folder,
 
 	url: '/api/v3.0/media/lists?ptype=1'
 
-
 });
-
-
-
-
-
 
 
 
@@ -71,93 +61,121 @@ etv.Folders = Backbone.Collection.extend({
 //----------------------  VIEWS  --------------------------------------
 // - - - - -- - -  - -- - -- - - - - -- - - - -- - - - - -- - - - - - -
 
+
+//Base View class with common methods to extend in future views 
+etv.vid.bmark.BaseView = Backbone.View.extend({
+
+   childrenClassName: 'child_container',
+
+   initialize: function(attrs, options){
+        this.el = $(this.el)
+        this.children_container = $(this.make("div", {className: this.childrenClassName}))
+        this.children = new this.collection_class([],{'parent_model':this.model})
+        this.children.bind('reset', this.addAll, this);
+        this.children.bind('add', this.addOne, this);
+   },
+
+   addOne: function(model){
+      var children_view = new this.childrens_view({model: model})
+      $(this.children_container).append(children_view.render().el)
+    },
+
+   addAll: function(){
+      this.children.each(this.addOne, this)
+      this.el.append(this.children_container)
+    },
+
+
+  //this method uses only perent 
+  render: function(){
+      $(this.el).html(this.template(this.model.toJSON()))
+      return this
+    }
+
+});
+
+
 // Single Entry view
-etv.EntryView = Backbone.View.extend({
+etv.vid.bmark.EntryView = etv.vid.bmark.BaseView.extend({
+
     tagName: "div",
 
-    className: "etv-app-item",
+    className: "etv-app-items",
 
     template: _.template(this.$('#item_template').html()),
 
-    render: function(){
-      $(this.el).html(this.template(this.model.toJSON()))
-      return this
-    },
-
+    initialize: function(){
+         etv.vid.bmark.Entries.bind('reset', this.addAll, this);
+     }
 });
 
 
 
 
-
-
-
-
 //Single folder view
-etv.FolderView = Backbone.View.extend({
+etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
 
-	tagName: "div",
+  opend: false,
 
-	className: "etv-app-folder",
+  childrenClassName: 'children_container',
 
-	template: _.template(this.$('#folder_template').html()),
+  collection_class: etv.vid.bmark.Entries,
+
+  childrens_view: etv.vid.bmark.EntryView,
+ 
+  tagName: "div",
+
+  className: "etv-app-folder",
+
+  template: _.template(this.$('#folder_template').html()),
 
   events: {
-      "click #.open": "folderOpen",
+      "click #.open": "folderToggle",
+      "click #.remove": "removeFolder",
     },
 
-  initialize: function(options){
-    this.model.entries.bind('add', this.addOneEntry, this);
+  folderToggle: function(){
+    if (!this.opend) {
+        this.children.fetch({success: this.openFolder()})
+      }
+    else {
+      this.closeFolder()
+    }
   },
 
-
-  render: function(){
-    	$(this.el).html(this.template(this.model.toJSON()))
-    	return this
-    },
-
-  folderOpen: function(){
-    this.model.entries.fetch({'success':this.addAllEntries})
+  openFolder : function(){
+    this.el.find('.open').html('CLOSE')
+    this.opend = true
   },
 
-  addOneEntry: function(entry){
-    var entry_view = new etv.EntryView({model: entry});
+  closeFolder: function(){
+    this.el.find('.open').html('OPEN')
+    this.opend = false
+    this.children_container.html('')
   },
 
-  addAllEntries: function(model, responce){
-    console.log(responce)
+  removeFolder: function(){
+    this.el.remove();
+    this.model.destroy()
   }
+});
 
-
-})
 
 
 
 // Bookmarks Main Viev 
-etv.BookmarksView = Backbone.View.extend({
-	initialize: function(options){
-		    // bind useful methods
-		    this.folders = new etv.Folders()
-		    this.folders.bind('add', this.addOne, this);
-        this.folders.bind('reset', this.addAll, this);
-        this.folders.bind('all', this.render, this);
-        this.folders.fetch()
-        },
+etv.vid.bmark.BookmarksView = etv.vid.bmark.BaseView.extend({
 
-    addOne: function(folder){
-    	var folder_view = new etv.FolderView({model: folder})
-    	$(this.el).append(folder_view.render().el)
-    },
+  collection_class : etv.vid.bmark.Folders,
 
-    addAll: function(){
-    	this.folders.each(this.addOne, this)
+  childrens_view: etv.vid.bmark.FolderView,
+
+  initialize: function(attributes,options){
+        etv.vid.bmark.BaseView.prototype.initialize.call(this, attributes, options);
+        this.children.fetch()
     }
-})
 
-
-
-
-
+});
 
 
 
