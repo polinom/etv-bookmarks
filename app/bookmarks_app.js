@@ -5,7 +5,12 @@ var etv = {}; etv.vid = {}; etv.vid.bmark = {}
 
 // Folder Item 
 etv.vid.bmark.Entry = Backbone.Model.extend({
-	urlRoot: '/api/v3.0/media/lists',
+	urlRoot: '/api/v3.0/media/lists/',
+
+  url: function(){
+    return this.urlRoot+this.get('playlist').id+'/entries/'+this.get('id')+'/'
+  }
+
   });
 
 
@@ -18,10 +23,19 @@ etv.vid.bmark.Folder = Backbone.Model.extend({
     },
 
     url: function(){
-      return '/api/v3.0/media/lists/'+this.get('id')
+      return '/api/v3.0/media/lists/'+this.get('id')+'/'
     }
     
 });
+
+
+// Empty model for AppView
+etv.vid.bmark.AppModel = Backbone.Model.extend({})
+
+
+
+
+
 
 
 // - - - - - - - - - - - - - - -- - - - -- - - - - -- - - -- - - - -- -
@@ -39,7 +53,7 @@ etv.vid.bmark.Entries = Backbone.Collection.extend({
 
   // to change
   url: function(){
-    return '/api/v3.0/media/lists/'+this.parent_model.get('id')+'/entries'
+    return '/api/v3.0/media/lists/'+this.parent_model.get('id')+'/entries/'
   },
 
 });
@@ -57,6 +71,11 @@ etv.vid.bmark.Folders = Backbone.Collection.extend({
 
 
 
+
+
+
+
+
 // - - -- - - -- - - -- - - -- - - - -- - - - - -- - - -- - - - -- - - 
 //----------------------  VIEWS  --------------------------------------
 // - - - - -- - -  - -- - -- - - - - -- - - - -- - - - - -- - - - - - -
@@ -68,15 +87,18 @@ etv.vid.bmark.BaseView = Backbone.View.extend({
    childrenClassName: 'child_container',
 
    initialize: function(attrs, options){
+        this.children_views = []
         this.el = $(this.el)
         this.children_container = $(this.make("div", {className: this.childrenClassName}))
         this.children = new this.collection_class([],{'parent_model':this.model})
         this.children.bind('reset', this.addAll, this);
         this.children.bind('add', this.addOne, this);
+        this.model.bind('destroy', this.remove, this);
    },
 
    addOne: function(model){
-      var children_view = new this.childrens_view({model: model})
+      var children_view = new this.childrens_view({model: model, parent_view:this})
+      this.children_views.push(children_view)
       $(this.children_container).append(children_view.render().el)
     },
 
@@ -104,8 +126,18 @@ etv.vid.bmark.EntryView = etv.vid.bmark.BaseView.extend({
 
     template: _.template(this.$('#item_template').html()),
 
+    events: {
+          'click #.item_remove': 'removeItem',
+        },
+
     initialize: function(){
          etv.vid.bmark.Entries.bind('reset', this.addAll, this);
+         this.model.bind('remove', this.remove, this)
+     },
+
+     removeItem: function(){
+       this.model.destroy();
+       this.remove()
      }
 });
 
@@ -131,12 +163,13 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
 
   events: {
       "click #.open": "folderToggle",
-      "click #.remove": "removeFolder",
+      "click #.folder_remove": "removeFolder",
+
     },
 
   folderToggle: function(){
     if (!this.opend) {
-        this.children.fetch({success: this.openFolder()})
+        this.children.fetch({success: this.openFolder() })
       }
     else {
       this.closeFolder()
@@ -144,22 +177,28 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
   },
 
   openFolder : function(){
+    this.options.parent_view.closeAllChildren()
     this.el.find('.open').html('CLOSE')
     this.opend = true
+    this.el.attr({'open':true})
   },
 
   closeFolder: function(){
     this.el.find('.open').html('OPEN')
     this.opend = false
     this.children_container.html('')
+    this.el.attr({'open':false})
   },
 
   removeFolder: function(){
-    this.el.remove();
-    this.model.destroy()
+    this.model.destroy();
+    this.remove();
+  },
+
+  createFolder: function(){
+    console.log('Creqte Folder')
   }
 });
-
 
 
 
@@ -171,9 +210,14 @@ etv.vid.bmark.BookmarksView = etv.vid.bmark.BaseView.extend({
   childrens_view: etv.vid.bmark.FolderView,
 
   initialize: function(attributes,options){
+        this.model = new etv.vid.bmark.AppModel
         etv.vid.bmark.BaseView.prototype.initialize.call(this, attributes, options);
         this.children.fetch()
-    }
+    },
+  
+  closeAllChildren: function(){
+    _.map(this.children_views, (function(view){ if (view.opend) {view.closeFolder()};  } ) )
+  }
 
 });
 
