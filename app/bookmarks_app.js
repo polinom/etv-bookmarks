@@ -38,6 +38,11 @@ etv.vid.bmark.AppModel = Backbone.Model.extend({})
 
 
 
+
+
+
+
+
 // - - - - - - - - - - - - - - -- - - - -- - - - - -- - - -- - - - -- -
 //----------------------  COLLECTIONS  --------------------------------
 // - - - - -- - -  - -- - -- - - - - -- - - - -- - - - - -- - - - - - -
@@ -68,6 +73,12 @@ etv.vid.bmark.Folders = Backbone.Collection.extend({
 	url: '/api/v3.0/media/lists?ptype=1',
 
 });
+
+
+
+
+
+
 
 
 
@@ -172,6 +183,7 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
    initialize: function(attributes,options){
         etv.vid.bmark.BaseView.prototype.initialize.call(this, attributes, options);
         this.children_container.css({height:'0px;'})
+        _.bindAll(this, )
     },
 
 
@@ -181,18 +193,37 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
       else { this.turn_of_edit_mod() }
    },
 
+
+
    turn_edit_mod: function() {
-     console.log('edit_mod')
      this.edit_mod = true;
+     //turn name field
      var val = this.el.find('.tit').text()
      this.el.find('.tit').html('<input class="input_edit" value="'+val+'" type="text" ></input>')
+
+     //turn desription field
+     var val = this.el.find('.desc').text()
+     this.el.find('.desc').html('<textarea rows="2" cols="20">'+val+'</textarea>')
+
    },
+
+
+
 
    turn_of_edit_mod: function() {
     this.edit_mod = false
+
+    //turn of name field
      var val = this.el.find('.input_edit').val()
      this.el.find('.tit').html(val)
+
+
+     //turn off description field
+     var val = this.el.find('textarea').val()
+     this.el.find('.desc').html(val)
+
    },
+
 
 
 
@@ -276,131 +307,12 @@ etv.vid.bmark.BookmarksView = etv.vid.bmark.BaseView.extend({
 
   emptyForm: function(){
 
-   var model = new etv.vid.bmark.Entry({ 'title':'', 'description':'', 'duration':'0', 'items':'0'});
+       var model = new etv.vid.bmark.Entry({ 'title':'', 'description':'', 'duration':'0', 'items':'0'});
 
-   var child_view =  new this.childrens_view({model:model});
+       this.children.add(model,{at:0})
 
-   this.children.add(model,{at:0})
-
-   this.children_views.push(child_view);
-
-   child_view.turn_edit_mod();
+       this.children_views[this.children_views.length-1].turn_edit_mod();
   }
 
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// - - -- - - -- - - -- - - -- - - - -- - - - - -- - - -- - - - -- - - 
-//----------------------  DOC  --------------------------------------
-// - - - - -- - -  - -- - -- - - - - -- - - - -- - - - - -- - - - - - -
-
-
-
-// /api/v3.0/media/lists?ptype=1
-// [
-   // {
-   //     "updated": "2011-09-13 13:41:23",
-   //     "description": "",
-   //     "created": "2011-09-13 13:41:23",
-   //     "items": 1,
-   //     "title": "Test",
-   //     "ptype": 1,
-   //     "user": {
-   //         "username": "api"
-   //     },
-   //     "duration": 0,
-   //     "shared": false,
-   //     "id": 1
-   // },
-//    {
-//        "updated": "2011-09-13 13:41:23",
-//        "description": "",
-//        "created": "2011-09-13 13:41:23",
-//        "items": 0,
-//        "title": "Test1",
-//        "ptype": 1,
-//        "user": {
-//            "username": "api"
-//        },
-//        "duration": 0,
-//        "shared": false,
-//        "id": 2
-//    }
-// ]
-
-// /api/v3.0/media/lists/1
-// {
-//    "updated": "2011-09-13 13:42:34",
-//    "description": "",
-//    "created": "2011-09-13 13:42:34",
-//    "items": 1,
-//    "title": "Test",
-//    "ptype": 1,
-//    "user": {
-//        "username": "api"
-//    },
-//    "duration": 0,
-//    "shared": false,
-//    "id": 1
-// }
-// 1:45 PM
-// /api/v3.0/media/lists/1/entries
-// [
-//    {
-//        "media": {
-//            "name": "Interny",
-//            "description_full": null
-//        },
-//        "playlist": {
-//            "updated": "2011-09-13 13:45:34",
-//            "description": "",
-//            "created": "2011-09-13 13:45:34",
-//            "items": 2,
-//            "title": "Test",
-//            "ptype": 1,
-//            "user": {
-//                "username": "api"
-//            },
-//            "duration": 0,
-//            "shared": false,
-//            "id": 1
-//        },
-//        "added": "2011-09-13 13:45:34",
-//        "order": 0
-//    },
-//    {
-//        "media": {
-//            "name": "Interny2",
-//            "description_full": null
-//        },
-//        "playlist": {
-//            "updated": "2011-09-13 13:45:34",
-//            "description": "",
-//            "created": "2011-09-13 13:45:34",
-//            "items": 2,
-//            "title": "Test",
-//            "ptype": 1,
-//            "user": {
-//                "username": "api"
-//            },
-//            "duration": 0,
-//            "shared": false,
-//            "id": 1
-//        },
-//        "added": "2011-09-13 13:45:34",
-//        "order": 1
-//    }
-// ]
 
