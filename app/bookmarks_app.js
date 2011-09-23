@@ -180,14 +180,14 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
     },
 
 
-   initialize: function(attributes,options){
+  initialize: function(attributes,options){
         etv.vid.bmark.BaseView.prototype.initialize.call(this, attributes, options);
         this.children_container.css({height:'0px;'})
-        _.bindAll(this, )
+        _.bindAll(this, 'sharedChanged')
     },
 
 
-   toggleEditMod: function(e){
+  toggleEditMod: function(e){
       e.preventDefault()
       if (!this.edit_mod) { this.turn_edit_mod()  } 
       else { this.turn_of_edit_mod() }
@@ -195,7 +195,7 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
 
 
 
-   turn_edit_mod: function() {
+  turn_edit_mod: function() {
      this.edit_mod = true;
      //turn name field
      var val = this.el.find('.tit').text()
@@ -210,7 +210,7 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
 
 
 
-   turn_of_edit_mod: function() {
+  turn_of_edit_mod: function() {
     this.edit_mod = false
 
     //turn of name field
@@ -223,8 +223,6 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
      this.el.find('.desc').html(val)
 
    },
-
-
 
 
   folderToggle: function(){
@@ -266,16 +264,13 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
 
     $(this.el).html(this.template(this.model.toJSON()))
 
+    this.el.find('input').change(this.sharedChanged)
 
-    self = this
-    this.el.find('input').change(function(){
-          var val = $(this).attr('value')
-          self.sharedChanged(val)
-        })
     return this
   },
 
   sharedChanged: function(val){
+    var val = $(this.el).find('input[name=shared]:checked').attr('value')
     this.model.set({'shared':val})
     this.model.save()
   }
@@ -306,11 +301,8 @@ etv.vid.bmark.BookmarksView = etv.vid.bmark.BaseView.extend({
 
 
   emptyForm: function(){
-
        var model = new etv.vid.bmark.Entry({ 'title':'', 'description':'', 'duration':'0', 'items':'0'});
-
-       this.children.add(model,{at:0})
-
+       this.children.add(model,{at:0});
        this.children_views[this.children_views.length-1].turn_edit_mod();
   }
 
