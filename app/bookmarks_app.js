@@ -1,12 +1,36 @@
 etv.utils = {};
 etv.utils.slice = function(text,p){ if(text.length>=p){return text.slice(0,p)+"..."} else {return text} };
-etv.utils.error_message = function(message){jAlert("<h2 style='color:red;'>"+message+"</h2>", {title:"tiletile"})};
-etv.utils.info_message = function(message){jAlert("<h2 style='color:blue;'>"+message+"</h2>", {title:"tiletile"})};
+etv.utils.error_message = function(message){jAlert("<h3 style='color:red;'>"+message+"</h3>", {title:"tiletile"})};
+etv.utils.info_message = function(message){jAlert("<h3 style='color:blue;'>"+message+"</h3>", {title:"tiletile"})};
+etv.utils.dialog_message = function(question, callback){ jConfirm("<h3 style='color:blue;'>"+question+"</h3>", 'Подтвердите Действие!', callback) }
 
 
-// - - -- - - -- - - -- - - -- - - - -- - - - - -- - - -- - - - -- - - 
-//----------------------  MODELS  --------------------------------------
-// - - - - -- - -  - -- - -- - - - - -- - - - -- - - - - -- - - - - - -
+//------------------ BACKBONE SYNC -----------------------------------
+
+// var original_sync = Backbone.sync
+
+// Backbone.sync = function () {
+//   console.log('sync started')
+//   console.log(arguments)
+
+
+//   arguments[2].success = function(){
+//     console.log('sync finished')
+//   }
+
+//   original_sync.apply(Backbone, arguments);
+// };
+
+
+
+//---------------------------------------------------------------------
+//----------------------  MODELS  -------------------------------------
+//---------------------------------------------------------------------
+
+etv.vid.bmark.Rubric = Backbone.Model.extend({
+  urlRoot: '/api/v3.0/media/lists/rubrics/',
+})
+
 
 
 // Folder Item 
@@ -15,10 +39,13 @@ etv.vid.bmark.Entry = Backbone.Model.extend({
 
   url: function(){
     return this.urlRoot+this.get('playlist').id+'/entries/'+this.get('id')+'/'
+  },
+
+  media_url: function(){
+    return '/watch/'+this.get('media').id+'/'
   }
 
   });
-
 
 
 // Folder model
@@ -34,6 +61,7 @@ etv.vid.bmark.Folder = Backbone.Model.extend({
       "mark_total": 0,
       "mark_count": 0,
       'id':null,
+      'rubric_verbose':'Нет Рубрики',
     },
 
     initialize: function(attrs, options) {
@@ -58,6 +86,7 @@ etv.vid.bmark.Folder = Backbone.Model.extend({
     if (typeof attrs.title == 'string' && attrs.title.length === 0) {
           if(attrs.title.length <= 1) return "Назовите папку!";
        }
+
     },
 
 
@@ -85,6 +114,12 @@ etv.vid.bmark.AppModel = Backbone.Model.extend({})
 //----------------------  COLLECTIONS  --------------------------------
 // - - - - -- - -  - -- - -- - - - - -- - - - -- - - - - -- - - - - - -
 
+etv.vid.bmark.FolderRubric = Backbone.Collection.extend({
+    model: etv.vid.bmark.Rubric,
+    url: '/api/v3.0/media/lists/rubrics/'
+})
+
+
 // Items Collection
 etv.vid.bmark.Entries = Backbone.Collection.extend({
 
@@ -102,8 +137,8 @@ etv.vid.bmark.Entries = Backbone.Collection.extend({
   empty: function(){
     $.ajax({ type: "DELETE", url: this.url() })
   }
-});
 
+});
 
 
 //  Folder Collection
@@ -114,7 +149,6 @@ etv.vid.bmark.Folders = Backbone.Collection.extend({
 	url: '/api/v3.0/media/lists?ptype=1',
 
 });
-
 
 
 // - - -- - - -- - - -- - - -- - - - -- - - - - -- - - -- - - - -- - - 
@@ -128,7 +162,7 @@ etv.vid.bmark.BaseView = Backbone.View.extend({
    childrenClassName: 'child_container',
 
    initialize: function(attrs, options){
-        _.bindAll(this, 'starsCallback')
+        _.bindAll(this, 'starsCallback', 'resortOnServer')
         this.children_views = []
         this.el = $(this.el)
         this.children_container = $(this.make("div", {'class': this.childrenClassName}))
@@ -137,6 +171,7 @@ etv.vid.bmark.BaseView = Backbone.View.extend({
         this.children.bind('add', this.addOne, this);
         this.model.bind('destroy', this.remove, this);
    },
+
 
    addOne: function(model){
       var self = this
@@ -150,16 +185,24 @@ etv.vid.bmark.BaseView = Backbone.View.extend({
       this.children.each(this.addOne, this)
       this.el.find('.entries_container').append(this.children_container)
       etv.common.Fivestar.initialize(".fivestar",{ oneTimeOnly: true,
-                                                   active: true,
+                                                   active: false,
                                                    success: function(res){
                                                           self.starsCallback(self, res)
-                                                        } 
+                                                        }
                                                   })
-      
+    this.el.find('.scroll_fave').sortable({ handle: '.arrows', update: this.resortOnServer  })
+
+    },
+
+    resortOnServer: function(event, ui){
+      var id = $(ui.item).attr('id')
+      var index = $(ui.item).index() + 1
+      model = this.children.get(id)
+      model.set({'order':index})
+      model.save()
     },
 
     starsCallback:function(self, res){
-      console.log(self.model.get('mark_count'))
       self.model.set({mark_total: res.total, mark_count: res.count})
     },
 
@@ -169,7 +212,6 @@ etv.vid.bmark.BaseView = Backbone.View.extend({
       $(this.el).html(this.template(this.model.toJSON()))
       return this
     }
-
 });
 
 
@@ -187,17 +229,55 @@ etv.vid.bmark.EntryView = etv.vid.bmark.BaseView.extend({
     events: {
           'click .item_remove': 'removeItem',
           'click .folders': 'moveItemButton',
+          'click .play_button': 'getMediaLink'
         },
 
     initialize: function(){
+         _.bindAll(this, 'renderMenu','moveItem')
          this.el = $(this.el)
          etv.vid.bmark.Entries.bind('reset', this.addAll, this);
          this.model.bind('remove', this.remove, this)
+         this.el.attr('id', this.model.get('id'))
+     },
+
+
+     getMediaLink: function(e){
+      e.preventDefault()
+      var self = this
+      var data = {sl:'', bitrate:1}
+      $.ajax({
+            data: data,
+            url: this.model.media_url(),
+            type: "POST",
+            dataType: 'json',
+            success: function(resp){ self.playMedia(self,resp) }
+        })
+     },
+
+
+     playMedia: function(self, resp){
+      console.log(typeof etv.common.readCookie('Playinsilverlightcheckbox'))
+       new etv.vid.play.Player({
+        instanceUrl: 'http://static.etvnet.com/silverlight/OVP.xap',
+        mediaUrl: resp.url,
+        autoPlay: true,
+        width: '540px',
+        height: '481px',
+        customParams : 'theme='+ 'http://static.etvnet.com/' + 'silverlight/themes/SmoothHD.xaml, stretchmode=Fit, stretchmodefullscreen=Fit, nologo=1',
+        divId: 'SilverLight',
+        errorMsg: "options.errorMsg"
+      });
+      
+      if(etv.common.readCookie('Playinsilverlightcheckbox')==='true') {
+          $('#SilverLight').dialog({position: ['center',100],  modal:true, width: '570px',title: this.model.get('media').name, beforeclose: function(event, ui) {$('#SilverLight').empty(); $('#SilverLight').dialog('destroy'); }});
+      } else {
+        location.href = resp.url
+      }
+
      },
 
      removeItem: function(e){
        e.preventDefault();
-       _.bindAll(this, 'renderMenu','moveItem')
        this.model.destroy();
        this.el.slideUp('slow', function(){this.remove})
        items = this.options.parent_view.model.get('items') - 1
@@ -208,11 +288,8 @@ etv.vid.bmark.EntryView = etv.vid.bmark.BaseView.extend({
 
      moveItemButton: function(e){
        e.preventDefault()
-       if (!this.menu_opend){
-         this.openMenu()
-       } else {
-         this.closeMenu()
-       }
+       if (!this.menu_opend){ this.openMenu() } 
+       else { this.closeMenu() }
      },
 
      openMenu: function(){
@@ -238,9 +315,10 @@ etv.vid.bmark.EntryView = etv.vid.bmark.BaseView.extend({
        var id = link.attr('id').replace('id_','')
        this.removeItem(e)
        var folder = this.options.parent_view.options.parent_view.children.get(parseInt(id))
-       items = folder.get('items') + 1
-       duration = folder.get('duration') + this.model.get('media').duration
-       folder.set({items:items,duration:duration})
+       var items = folder.get('items') + 1
+       var duration = folder.get('duration') + this.model.get('media').duration
+       var image = this.model.get('image_path')
+       folder.set( {items:items, duration:duration, image_path: image} )
        var url = folder.url()+'entries/'+this.model.get('media').id+'/'
        $.ajax({ data: {},
                  type: 'POST',
@@ -249,10 +327,7 @@ etv.vid.bmark.EntryView = etv.vid.bmark.BaseView.extend({
                  success: function(resp,status){console.log(resp)}
         })
      }
-
 });
-
-
 
 //Single folder view
 etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
@@ -278,14 +353,35 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
   template: _.template(this.$('#folder_template').html()),
 
   events: {
-      "click .open, .close": "folderToggle",
+      "click .open, .close, .poster_a": "folderToggle",
       "click .folder_remove": "removeFolder",
       "click .save_edit_title" : 'toggleEditModTitle',
       "click .save_edit_desc" : 'toggleEditModDesc',
       "click .empty" : 'emptyFolder', 
+      "click .save_edit_rubric" : 'toggleEditModRubric',
     },
 
+  confirm_shared_message: function() {
+    var desc = this.model.get('description')
+    if (desc.length === 3){
+      desc = this.default_description()
+    }
+    return 'Папка «'+this.model.get('title')+'» с описанием «'+ desc +'» из раздела «'+this.model.get('rubric_verbose')+'» будет доступна другим зрителям eTVnet'
+   },
+
+
+  default_description: function() { 
+    if (this.children.length === 0) this.children.fetch()
+    var desc = "В данной папке собраны фильмы и передачи из следующих разделов: "
+    this.children.each(function(item){
+      console.log(item)
+    })
+
+    return desc
+  },
+
   emptyFolder: function(e) {
+    etv.utils.dialog_message("OPOPOPOPOP", function(r){console.log(r)});
     e.preventDefault()
     this.children.empty()
     this.closeFolder()
@@ -295,7 +391,7 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
   initialize: function(attributes,options){
         etv.vid.bmark.BaseView.prototype.initialize.call(this, attributes, options);
         this.children_container.css({height:'0px;'})
-        _.bindAll(this, 'sharedChanged', 'openFolder', 'closeFolder')
+        _.bindAll(this, 'sharedChanged', 'confirmSharedChanged', 'openFolder', 'closeFolder', 'showLoader', 'hideLoader')
         this.model.bind("error", this.handleValidationError)
         this.model.bind("change:shared", this.shared_changed, this)
         this.model.bind("change:title", this.titleChanged, this)
@@ -304,8 +400,59 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
         this.model.bind("change:duration", this.durationChanged, this)
         this.model.bind("change:id", this.idChanged, this)
         this.model.bind("change:mark_count", this.mark_count_changed, this)
+        this.model.bind("change:image_path", this.image_path_changed, this)
     },
 
+  showLoader: function(){
+    this.el.find('.app_loader').show()
+  },
+
+  hideLoader: function(){
+    this.el.find('.app_loader').hide()
+  },
+
+  toggleEditModRubric: function(e){
+    e.preventDefault()
+    if (this.rubric_edit_mod) {
+      this.rubricTurnOffEditMod()
+    } else {
+      this.rubricTurnEditMod()
+    }
+  },
+
+
+  rubricTurnEditMod: function(){
+    self = this
+    var rubrics = this.options.parent_view.rubrics
+    var select = this.make("select", {'className': "medium", 'name': "mediumSelect", 'id': "mediumSelect" }, "Bold! ")
+    $(select).append(self.make("option",{'value':0}, 'Нет Рубрики' ) )
+    rubrics.each(function(rubric){
+      console.log(rubric.get('id'), self.model.get('rubric'))
+         if (rubric.get('id') == self.model.get('rubric')){
+             var option = self.make("option",{'value':rubric.get('id'), 'selected':'selected'}, rubric.get('name'))
+          } else {
+             var option = self.make("option",{'value':rubric.get('id')}, rubric.get('name'))
+          }
+        $(select).append(option)
+    })
+    this.el.find('.rubrika').html(select)
+    this.rubric_edit_mod = true
+  },
+
+  rubricTurnOffEditMod: function(){
+    this.rubric_edit_mod = false
+    var select = this.el.find('.rubrika').find('select option:selected')
+    var id = select.val()
+    var text = select.text()
+    this.model.set({'rubric':id, 'rubric_verbose':text})
+    this.model.save()
+    var t = this.make('span', {}, text)
+    this.el.find('.rubrika').html(t)
+  },
+
+  image_path_changed: function(e){
+    this.el.find('.favorite_folder_poster').find('img').attr('src', this.model.get('image_path'))
+  },
 
   mark_count_changed: function(e){
     this.el.find(".mark_count").html(this.model.get('mark_count'))
@@ -368,6 +515,7 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
    turn_edit_mod: function(){
      this.edit_mod_title()
      this.edit_mod_desc()
+     this.rubricTurnEditMod()
    },
 
 
@@ -410,12 +558,13 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
 
 
   folderToggle: function(){
-    if (!this.opend) { this.children.fetch({success: this.openFolder }) }
+    if (!this.opend) { this.showLoader(); this.children.fetch({success: this.openFolder }) }
     else { this.children_container.slideUp(this.slideSpeed, this.closeFolder) }
   },
 
 
   openFolder : function(rs){
+    this.hideLoader()
     if (rs.length !== 0) {
         this.options.parent_view.closeAllChildren()
         this.opend = true
@@ -454,15 +603,33 @@ etv.vid.bmark.FolderView = etv.vid.bmark.BaseView.extend({
 
     $(this.el).html(this.template(this.model.toJSON()))
 
-    this.el.find('input').change(this.sharedChanged)
+    this.el.find('input').change(this.confirmSharedChanged)
 
     return this
   },
 
-  sharedChanged: function(val){
+  confirmSharedChanged: function(){
+
     var val = $(this.el).find('input[name=shared]:checked').attr('value')
-    this.model.set({'shared':val})
-    this.model.save()
+    
+    if(val==1) {
+      etv.utils.dialog_message(this.confirm_shared_message(), this.sharedChanged)
+    } else {
+      this.model.set({'shared':val})
+      this.model.save()
+    }
+
+  },
+
+  sharedChanged: function(confirm){
+    var val = $(this.el).find('input[name=shared]:checked').attr('value')
+    if (confirm) {
+        var val = $(this.el).find('input[name=shared]:checked').attr('value')
+        this.model.set({'shared':val})
+        this.model.save()
+    } else {
+       $(this.el).find('input[name=shared]')[1].checked = 'checked';
+    }
   },
 
   handleValidationError: function(model, error){
@@ -486,20 +653,22 @@ etv.vid.bmark.BookmarksView = etv.vid.bmark.BaseView.extend({
   },
 
   initialize: function(attributes,options){
+        this.rubrics = new etv.vid.bmark.FolderRubric
+        this.rubrics.fetch()
         this.model = new etv.vid.bmark.AppModel
         etv.vid.bmark.BaseView.prototype.initialize.call(this, attributes, options);
         this.children.fetch()
     },
   
+
   closeAllChildren: function(){
     _.map(this.children_views, (function(view){ 
                  if (view.opend) {
                          view.children_container.slideUp(view.slideSpeed, view.closeFolder)
-                         };  
-                       })
+                         };
+                    })
           )
   },
-
 
   emptyForm: function(e){
        e.preventDefault()
